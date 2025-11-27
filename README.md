@@ -1,5 +1,7 @@
 # Nebula
 
+![Nebula](assets/Nebula.png)
+
 **Nebula** is a high-performance, distributed real-time chat server written in Go.
 This project is designed to scale to 20,000+ simultaneous WebSocket connections across multiple nodes.
 

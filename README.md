@@ -20,8 +20,8 @@ This project is designed to scale to 20,000+ simultaneous WebSocket connections 
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/nebula.git
-cd nebula
+git clone https://github.com/UnMars/Nebula.git
+cd Nebula
 
 # Install dependencies
 go mod tidy

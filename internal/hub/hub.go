@@ -83,30 +83,26 @@ func NewHub() *Hub {
 
 // Hub main function
 func (h *Hub) Run() {
-	for {
-		select {
-		// Broadcast a message
-		case msg := <-h.broadcast:
-			// Read lock (for rooms map)
-			h.mu.RLock()
-			var deadClients []types.Clienter
+	for msg := range h.broadcast {
+		// Read lock (for rooms map)
+		h.mu.RLock()
+		var deadClients []types.Clienter
 
-			if room, ok := h.rooms[msg.Room]; ok {
-				for client := range room.Clients {
-					select {
-					case client.SendChannel() <- msg.Data:
-					// Dead / unresponsive client, remove it
-					default:
-						deadClients = append(deadClients, client)
-					}
+		if room, ok := h.rooms[msg.Room]; ok {
+			for client := range room.Clients {
+				select {
+				case client.SendChannel() <- msg.Data:
+				// Dead / unresponsive client, remove it
+				default:
+					deadClients = append(deadClients, client)
 				}
 			}
-			h.mu.RUnlock()
+		}
+		h.mu.RUnlock()
 
-			// Unregister dead clients
-			for _, client := range deadClients {
-				h.UnregisterClient(client)
-			}
+		// Unregister dead clients
+		for _, client := range deadClients {
+			h.UnregisterClient(client)
 		}
 	}
 }

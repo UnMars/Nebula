@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Nebula — Go Chat</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }
+        #messages { height: 70vh; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; background: #f9f9f9; }
+        #messages div { margin: 4px 0; }
+        .system { color: #666; font-style: italic; }
+        input, button { padding: 10px; font-size: 16px; }
+        form { display: flex; gap: 10px; }
+        form input { flex: 1; }
+    </style>
+</head>
+<body>
+    <h1>Nebula Chat</h1>
+    <div id="status">Connecting…</div>
+    <div id="messages"></div>
+    <form id="form">
+        <input id="input" autocomplete="off" placeholder="Type your message…" autofocus />
+        <button>Send</button>
+    </form>
+
+    <script src="app.js"></script>
+</body>
+</html>

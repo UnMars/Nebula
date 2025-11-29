@@ -1,23 +1,48 @@
 package main
 
 import (
+	"context"
 	"log"
 	"nebula/internal/hub"
 	"nebula/internal/server"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 func main() {
-	// Run the hub
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+
+	// Start the hub
 	hub := hub.NewHub()
 	go hub.Run()
 
 	// Setup routes
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		server.ServeWS(hub, w, r)
 	})
-	http.Handle("/", http.FileServer(http.Dir("web/static")))
+	mux.Handle("/", http.FileServer(http.Dir("web/static")))
 
-	// Run the HTTP server
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	webServer := &http.Server{
+		Addr:    ":8080",
+		Handler: mux,
+	}
+
+	// Run the HTTP server in a goroutine
+	go func() { webServer.ListenAndServe() }()
+	log.Println("Server started on :8080")
+
+	// Wait for termination signal
+	<-signalChan
+
+	log.Println("Shutting down server...")
+	hub.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	webServer.Shutdown(ctx)
+
 }

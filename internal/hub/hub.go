@@ -32,19 +32,40 @@ func (h *Hub) RegisterClient(client types.Clienter) {
 
 	// Add client to the room
 	r.Clients[client] = true
+
+	// Get room users
+	roomUsers := make([]string, 0)
+	for client := range r.Clients {
+		roomUsers = append(roomUsers, client.Username())
+	}
+
 	h.mu.Unlock()
 
 	// Send welcome message to the room
 	welcomeMessage := message.BroadcastMessage{
-		Room: roomName,
-		Data: []byte(client.Username() + " joined the room."),
+		Room:   roomName,
+		Type:   "join",
+		Sender: client.Username(),
+		Users:  roomUsers,
 	}
 	h.BroadcastMessage(welcomeMessage)
+
+	if len(roomUsers) > 0 {
+		// Send presence message
+		presenceMessage := message.BroadcastMessage{
+			Room:  roomName,
+			Type:  "presence",
+			Users: roomUsers,
+		}
+		h.BroadcastMessage(presenceMessage)
+	}
 }
 
 // Unregister a client from the hub
 func (h *Hub) UnregisterClient(client types.Clienter) {
 	roomName := client.CurrentRoom()
+
+	roomUsers := make([]string, 0)
 
 	h.mu.Lock()
 	// Remove client from the room
@@ -53,23 +74,43 @@ func (h *Hub) UnregisterClient(client types.Clienter) {
 		// Remove room if it's empty
 		if len(r.Clients) == 0 {
 			delete(h.rooms, roomName)
+		} else {
+			// Get room users
+			for client := range r.Clients {
+				roomUsers = append(roomUsers, client.Username())
+			}
 		}
 	}
 	h.mu.Unlock()
 
 	// Send leave message to the room
 	leaveMessage := message.BroadcastMessage{
-		Room: roomName,
-		Data: []byte(client.Username() + " left the room."),
+		Room:   roomName,
+		Type:   "leave",
+		Sender: client.Username(),
 	}
 	h.BroadcastMessage(leaveMessage)
 
+	if len(roomUsers) > 0 {
+		// Send presence message
+		presenceMessage := message.BroadcastMessage{
+			Room:  roomName,
+			Type:  "presence",
+			Users: roomUsers,
+		}
+		h.BroadcastMessage(presenceMessage)
+	}
 	// Close client's send channel
 	client.CloseSendChannel()
 }
 
 // Broadcast a message to clients of the room of the message
 func (h *Hub) BroadcastMessage(msg message.BroadcastMessage) {
+	defer func() {
+		if r := recover(); r != nil {
+			// Hub is closed, ignore
+		}
+	}()
 	h.broadcast <- msg
 }
 
@@ -79,6 +120,19 @@ func NewHub() *Hub {
 		rooms:     make(map[string]*room.Room),
 		broadcast: make(chan message.BroadcastMessage),
 	}
+}
+
+// Close a hub
+func (h *Hub) Close() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	for _, room := range h.rooms {
+		for client := range room.Clients {
+			client.CloseSendChannel()
+		}
+	}
+	close(h.broadcast)
 }
 
 // Hub main function
@@ -91,7 +145,7 @@ func (h *Hub) Run() {
 		if room, ok := h.rooms[msg.Room]; ok {
 			for client := range room.Clients {
 				select {
-				case client.SendChannel() <- msg.Data:
+				case client.SendChannel() <- msg:
 				// Dead / unresponsive client, remove it
 				default:
 					deadClients = append(deadClients, client)

@@ -5,7 +5,7 @@ import "nebula/internal/message"
 // Client interface
 type Clienter interface {
 	// Send channel to send messages to the client
-	SendChannel() chan<- []byte
+	SendChannel() chan<- message.BroadcastMessage
 	// Username of the client
 	Username() string
 	// Current room of the client
@@ -22,4 +22,6 @@ type Hubber interface {
 	UnregisterClient(Clienter)
 	// Broadcast a message to clients of the room of the message
 	BroadcastMessage(message.BroadcastMessage)
+	// Close the hub
+	Close()
 }

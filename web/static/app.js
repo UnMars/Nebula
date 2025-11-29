@@ -15,6 +15,12 @@ const messages = document.getElementById("messages");
 const input = document.getElementById("input");
 const status = document.getElementById("status");
 const form = document.getElementById("form");
+const usersList = document.getElementById("users");
+
+function updateUsers(users) {
+  console.log(users);
+  usersList.innerHTML = users.map((user) => `<li>${user}</li>`).join("");
+}
 
 function addMessage(text, type = "message") {
   const div = document.createElement("div");
@@ -30,7 +36,23 @@ ws.onopen = () => {
 };
 
 ws.onmessage = (event) => {
-  addMessage(event.data);
+  const msg = JSON.parse(event.data);
+  if (msg.type === "join") {
+    addMessage(msg.sender + " joined the room", "system");
+    return;
+  }
+  if (msg.type === "leave") {
+    addMessage(msg.sender + " left the room", "system");
+    return;
+  }
+  if (msg.type === "presence") {
+    updateUsers(msg.users);
+    return;
+  }
+  if (msg.type === "message") {
+    addMessage(msg.sender + ": " + msg.content);
+    return;
+  }
 };
 
 ws.onclose = () => {
@@ -41,6 +63,12 @@ ws.onclose = () => {
 form.onsubmit = (e) => {
   e.preventDefault();
   if (input.value.trim() === "") return;
-  ws.send(input.value);
+  data = {
+    type: "message",
+    room: room,
+    sender: username,
+    content: input.value,
+  };
+  ws.send(JSON.stringify(data));
   input.value = "";
 };

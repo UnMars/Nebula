@@ -1,18 +1,14 @@
 package client
 
 import (
-	"bytes"
+	"encoding/json"
+	"fmt"
 	"log"
 	"nebula/internal/message"
 	"nebula/internal/types"
 	"time"
 
 	"github.com/gorilla/websocket"
-)
-
-var (
-	newline = []byte{'\n'}
-	space   = []byte{' '}
 )
 
 // Client struct, implements Clienter interface
@@ -22,7 +18,7 @@ type Client struct {
 	// Websocket connection
 	conn *websocket.Conn
 	// Send channel
-	send chan []byte
+	send chan message.BroadcastMessage
 	// Username of the client
 	username string
 	// Current room name of the client
@@ -35,7 +31,7 @@ func (c *Client) CloseSendChannel() {
 }
 
 // Get the send channel
-func (c *Client) SendChannel() chan<- []byte {
+func (c *Client) SendChannel() chan<- message.BroadcastMessage {
 	return c.send
 }
 
@@ -53,7 +49,7 @@ func NewClient(hub types.Hubber, conn *websocket.Conn, username string, room str
 	return &Client{
 		hub:      hub,
 		conn:     conn,
-		send:     make(chan []byte, 256),
+		send:     make(chan message.BroadcastMessage, 256),
 		username: username,
 		room:     room,
 	}
@@ -69,8 +65,10 @@ func (c *Client) ReadPump() {
 
 	// Set connection options
 	c.conn.SetReadLimit(512)
-	c.conn.SetReadDeadline(time.Time{})
-	c.conn.SetPongHandler(func(string) error { return c.conn.SetReadDeadline(time.Time{}) })
+	c.conn.SetReadDeadline(time.Now().Add(time.Second * 60)) // 1 minute timeout
+	c.conn.SetPongHandler(func(string) error {
+		return c.conn.SetReadDeadline(time.Now().Add(time.Second * 60))
+	})
 
 	for {
 		// Read message from the client
@@ -82,15 +80,13 @@ func (c *Client) ReadPump() {
 			break
 		}
 		// Format message
-		msg = bytes.TrimSpace(bytes.ReplaceAll(msg, newline, space))
+		var decodedMsg message.BroadcastMessage
+		json.Unmarshal(msg, &decodedMsg)
 		if len(msg) == 0 {
 			continue
 		}
 		// Broadcast message to the room
-		c.hub.BroadcastMessage(message.BroadcastMessage{
-			Room: c.room,
-			Data: append([]byte(c.username+": "), msg...),
-		})
+		c.hub.BroadcastMessage(decodedMsg)
 
 	}
 }
@@ -123,12 +119,13 @@ func (c *Client) WritePump() {
 				return
 			}
 			// Write message
-			w.Write(msg)
-
-			// Write pending messages
-			for range len(c.send) {
-				w.Write(<-c.send)
+			msgAsJson, err := json.Marshal(msg)
+			if err != nil {
+				return
 			}
+
+			fmt.Println("Sending message:", string(msgAsJson))
+			w.Write(msgAsJson)
 
 			// Close writer
 			err = w.Close()

@@ -1,184 +1,145 @@
-# GO EXPERT PROJECT — NEBULA v3
-**Distributed, high-performance, and resilient real-time chat**
-Complete subject to follow step-by-step — Level ENSIMAG / École 42 / Go Backend Internship
+# 🌌 Project Nebula: High-Performance Distributed WebSocket Engine
+**Advanced Go Systems Programming — Final Capstone Project**
 
-Total duration: 4 to 6 weeks
-Final objective: a cluster of Go servers capable of handling 20,000+ simultaneous WebSocket connections, with persistence, node restart tolerance, monitoring, and zero goroutine leaks.
+| Metadata | Details |
+| :--- | :--- |
+| **Level** | Advanced (Master 2 / End of Studies) |
+| **Focus** | Concurrency, Distributed Systems, High Availability |
+| **Stack** | Go 1.25+, Redis, Docker, Prometheus |
+| **Duration** | 4 to 6 weeks |
+| **Team** | Solo or Pair |
 
-This subject is designed to be followed sequentially. You validate each step before moving on to the next. By the end, you will have a publishable project on GitHub that will impress any Go recruiter.
+---
 
-## Final project objective (what you will have on the last day)
+## 1. 📝 Introduction
 
-- `docker-compose up --scale nebula=3` → 3 instances + Redis + Prometheus/Grafana
-- 20,000+ simultaneous WebSocket connections distributed across the 3 nodes
-- Users in the same room see each other even if they are connected to different nodes
-- Node restart → zero lost messages, history restored
-- Real-time metrics (connections, messages/s, latency, goroutines, RAM)
-- `go test -race ./...` → 100% clean
-- 5-page PDF report + flamegraphs + k6 results
+### The Pitch
+Modern real-time applications (Discord, Slack, WhatsApp) handle millions of concurrent connections. They don't achieve this by accident; they rely on highly optimized, distributed architectures.
 
-## Final features (realistic and ordered scope)
+Your mission is to build **Nebula**: a distributed, fault-tolerant, and high-performance WebSocket chat engine.
 
-| Feature                                        | Step  | Mandatory   |
-|------------------------------------------------|-------|-------------|
-| WebSocket connection + rooms                   | 1     | Yes         |
-| Broadcast in a room (local)                    | 1     | Yes         |
-| Presence (list of connected users)             | 1     | Yes         |
-| Username + signed cookie (no heavy JWT)        | 1     | Yes         |
-| Rate limiting by IP/user                       | 2     | Yes         |
-| Room sharding (32–64 shards)                   | 2     | Yes         |
-| Asynchronous persistence (AOF or SQLite)       | 3     | Yes         |
-| History replay on startup                      | 3     | Yes         |
-| Cluster via Redis Pub/Sub                      | 4     | Yes         |
-| Prometheus metrics + /metrics endpoint         | 5     | Yes         |
-| Complete graceful shutdown (flush + clean disconnect) | 5 | Yes         |
-| Automatic reconnection with same userID        | 6     | Bonus       |
-| Protobuf instead of JSON                       | 6     | Bonus       |
-| Simple HTMX dashboard                          | 6     | Bonus       |
+Unlike a standard "bootcamp chat app", Nebula is designed to be **production-grade**. It must handle **20,000+ simultaneous connections**, survive node failures, and provide real-time observability. You will not use high-level web frameworks (like Gin or Fiber). You will build the core engine using the Go standard library to understand exactly how memory and concurrency work under the hood.
 
-## Non-negotiable technical constraints
+### Pedagogical Objectives
+By the end of this project, you will have mastered:
+*   **Advanced Go Concurrency**: Channels, Mutexes, WaitGroups, and avoiding race conditions.
+*   **Memory Optimization**: Profiling (pprof), minimizing allocations, and using `sync.Pool`.
+*   **Distributed Systems**: Pub/Sub patterns, eventual consistency, and sharding.
+*   **Resilience**: Graceful shutdowns, crash recovery, and signal handling.
+*   **DevOps**: Docker composition, load testing (k6), and monitoring (Prometheus/Grafana).
 
-1. Zero web framework (just `net/http` + `nhooyr/websocket` or `gorilla/websocket`)
-2. Zero goroutine leak → `go test -race ./...` must be flawless
-3. Complete graceful shutdown in a cluster
-4. < 100 allocs/op on the critical path (broadcast)
-5. Everything must run with `docker-compose up`
+---
 
-## Final project structure
+## 2. ⚖️ General Rules & Constraints
 
-```bash
+### Technical Constraints
+1.  **Language**: Go (latest stable version).
+2.  **Web Frameworks**: **FORBIDDEN**. You must use `net/http`.
+3.  **WebSocket Library**: `github.com/gorilla/websocket` or `github.com/nhooyr/websocket` are allowed.
+4.  **Database**: Redis (for Pub/Sub) and a file-based persistence (AOF or SQLite).
+5.  **Code Quality**:
+    *   `go vet` and `staticcheck` must pass.
+    *   **Zero Data Races**: `go test -race ./...` must be 100% clean.
+    *   Code must be formatted with `gofmt`.
+
+### Project Structure
+You must adhere to the standard Go project layout:
+```
 nebula/
-├── cmd/
-│   └── nebula/
-│       └── main.go                  # server + config + graceful shutdown
-├── internal/
-│   ├── server/                      # HTTP handlers + WS upgrade
-│   │   ├── handler.go
-│   │   └── middleware.go
-│   ├── hub/
-│   │   ├── shard.go                 # one shard = one goroutine + map[room]*Room
-│   │   ├── sharding.go              # hash function roomName → shardID
-│   │   └── redis_bridge.go          # Redis pub/sub for the cluster
-│   ├── room/
-│   │   └── room.go                  # local clients + broadcast channel
-│   ├── client/
-│   │   └── client.go
-│   ├── persistence/
-│   │   ├── writer.go                # buffered async writer (AOF or SQLite)
-│   │   └── replayer.go
-│   ├── auth/
-│   │   └── userid.go                # signed cookie → userID
-│   ├── metrics/
-│   │   └── prometheus.go
-│   └── protocol/
-│       └── message.proto            # (Protobuf bonus)
-├── pkg/
-│   └── rate/
-│       └── limiter.go               # token bucket
-├── web/
-│   └── static/
-│       ├── index.html
-│       └── app.js                   # ultra-simple test client
-├── scripts/
-│   ├── loadtest.k6.js
-│   └── cluster.sh
-├── docker-compose.yml
-├── Dockerfile
-├── go.mod
-├── Makefile
-└── README.md
+├── cmd/nebula/       # Main entry point
+├── internal/         # Private application and library code
+│   ├── server/       # HTTP & WebSocket transport layer
+│   ├── hub/          # Core logic (Room management)
+│   ├── protocol/     # Serialization & Message definitions
+│   └── ...
+├── pkg/              # Library code safe to use by external apps
+├── web/              # Frontend assets (for testing)
+└── deployments/      # Docker & CI/CD configurations
 ```
 
-## The 6 detailed steps (to be validated one by one)
+---
 
-### STEP 1 — Functional Local MVP (4–6 days)
+## 3. 🗺️ The Roadmap
 
-Objective: a chat that works perfectly on a single instance.
+The project is divided into **6 distinct milestones**. You must validate each step before moving to the next.
 
-Deliverables:
-- WebSocket connection
-- Create/join a room
-- Send/receive messages
-- Real-time presence
-- Username via signed cookie
-- Working HTML/JS page
+### 🟢 Step 1: The Functional MVP
+**Objective**: A working chat server on a single node.
+*   **Features**:
+    *   WebSocket handshake & upgrade.
+    *   Concept of **Rooms**: Users can join/leave specific channels.
+    *   **Broadcast**: Messages sent by one user are received by all others in the room.
+    *   **Presence**: System messages when users join/leave ("Alice joined the room").
+    *   **Protocol**: Define a strict JSON protocol (e.g., `{"type": "msg", "room": "general", "payload": "..."}`).
+*   **Deliverable**: A server that works with the provided HTML/JS client.
 
-Simple architecture: a single global `Hub` with `sync.RWMutex` (it's OK at this stage).
+### 🔵 Step 2: High Performance & Sharding
+**Objective**: Scale from 500 to 10,000+ concurrent connections on a single machine.
+*   **The Problem**: A single `sync.Mutex` on the central Hub will become a bottleneck.
+*   **The Solution**: **Sharding**.
+    *   Split the Hub into 32 or 64 "Shards".
+    *   Route rooms to shards using a hash function (e.g., `CRC32(roomName) % numShards`).
+    *   Each shard manages its own locks and clients.
+*   **Optimization**:
+    *   Implement `sync.Pool` for reusing message buffers (reduce GC pressure).
+    *   Implement a Rate Limiter (Token Bucket) to prevent spam.
+*   **Validation**: Run a local benchmark. The server must handle 5k connections with low latency.
 
-### STEP 2 — Local Performance & Sharding (5–7 days)
+### 🟠 Step 3: Persistence & Reliability
+**Objective**: Zero data loss on restart.
+*   **Feature**: When the server restarts, previous messages in a room should be replayed to new users.
+*   **Implementation**:
+    *   Create an **Asynchronous Writer** (don't block the broadcast loop!).
+    *   Storage Strategy: **Append-Only File (AOF)** or **SQLite (WAL mode)**.
+    *   On startup: Read the storage and repopulate the in-memory history of active rooms.
+*   **Constraint**: The write operation must not degrade broadcast performance.
 
-Objective: go from 500 → 8,000+ connections on one machine.
+### 🔴 Step 4: The Distributed Cluster
+**Objective**: Horizontal scaling. Run multiple Nebula nodes that talk to each other.
+*   **Scenario**: User A connects to Node 1. User B connects to Node 2. They are in the same room. They must be able to chat.
+*   **Architecture**:
+    *   Use **Redis Pub/Sub** as the inter-node bus.
+    *   When Node 1 receives a message for "Room X", it publishes it to Redis channel `nebula:room:X`.
+    *   Node 2 (subscribed to `nebula:room:X`) receives the payload and broadcasts it to its local clients.
+*   **Deliverable**: `docker-compose up --scale nebula=3`.
 
-To do:
-- Remove global mutex → 32 or 64 shards (each shard has its own goroutine and map)
-- Use `sync.Pool` for message buffers
-- Token bucket rate limiter (pkg/rate/limiter.go)
-- Measure with pprof → aim for < 100 allocs/op on broadcast
-- Local load test with k6 → 8,000 simultaneous connections
+### 🟣 Step 5: Production Readiness
+**Objective**: Observability and Graceful Shutdown.
+*   **Metrics**: Expose a `/metrics` endpoint for **Prometheus**.
+    *   Gauges: `connected_clients`, `active_rooms`, `goroutines`.
+    *   Counters: `messages_total`, `errors_total`.
+    *   Histograms: `broadcast_duration_seconds`.
+*   **Graceful Shutdown**:
+    *   Catch `SIGINT`/`SIGTERM`.
+    *   Stop accepting new connections.
+    *   Flush pending writes to disk.
+    *   Close existing WebSockets with a "Server Shutting Down" frame.
+    *   Exit only when safe.
 
-### STEP 3 — Asynchronous Persistence & Replay (5–7 days)
+### 🏆 Step 6: Bonus & Excellence
+**Objective**: Go above and beyond.
+*   **Binary Protocol**: Replace JSON with **Protobuf** for tighter payloads.
+*   **Dynamic Resharding**: Handle adding/removing nodes from the cluster dynamically.
+*   **Dashboard**: A real-time admin dashboard (using HTMX or React) showing cluster health.
+*   **CI/CD**: GitHub Actions pipeline running tests and linters.
 
-Objective: no longer lose history on restart.
+---
 
-Two options (choose the one you want):
-- Simple option: Append-Only File (AOF) → one JSON line per message
-- Cleaner option: SQLite with WAL mode
+## 4. 🧪 Evaluation Criteria
 
-Implementation:
-- A writer goroutine with buffered channel (10,000 messages)
-- On every message → send to writer + broadcast
-- On startup → replay file/database to reconstruct state
+Your project will be evaluated on:
+1.  **Stability**: Does it crash under load? (It shouldn't).
+2.  **Performance**: Is the latency acceptable with 10k users?
+3.  **Code Quality**: Is the code idiomatic Go? Are mutexes used correctly?
+4.  **Architecture**: Is the separation of concerns respected?
 
-### STEP 4 — Cluster Mode with Redis (6–8 days)
+## 5. 📚 Resources
 
-Objective: two different instances can exchange messages.
+*   [The Go Memory Model](https://go.dev/ref/mem)
+*   [Gorilla WebSocket Documentation](https://pkg.go.dev/github.com/gorilla/websocket)
+*   [Redis Pub/Sub](https://redis.io/docs/manual/pubsub/)
+*   [Prometheus Go Client](https://github.com/prometheus/client_golang)
+*   [1M connections in Go (WebSocket)](https://www.freecodecamp.org/news/million-websockets-and-go-cc58418460bb/)
 
-Architecture:
-- Each node manages its local clients
-- When a client sends a message → local broadcast + Redis publication `channel:roomName`
-- Each node is subscribed to all existing rooms (or via pattern)
-- Message received from Redis → local broadcast only
-
-Realistic bonus: automatic room discovery via Redis
-
-### STEP 5 — Observability & Cluster Graceful Shutdown (4–6 days)
-
-To add:
-- Prometheus `/metrics` endpoint (number of connections, messages/s, goroutines, etc.)
-- `/healthz` healthcheck
-- Graceful shutdown:
-  - Stop accepting new connections
-  - Wait for all writers to flush
-  - Close all WebSocket connections cleanly
-  - Close Redis
-- docker-compose with preconfigured Prometheus + Grafana
-
-### STEP 6 — Bonus, Tests, Cleanup & Final Report (5–10 days)
-
-- Unit + integration tests (especially hub + persistence)
-- Broadcaster benchmarks
-- GitHub Actions CI with race detector
-- 5-page PDF report (architecture, difficulties, flamegraphs, k6 results)
-- Epic README with GIFs
-
-## Final deliverables required (to have on the last day)
-
-1. Clean public GitHub repo
-2. `docker-compose up --scale nebula=3` that works in < 15 seconds
-3. README with:
-   - GIF of chat in cluster
-   - Test commands
-   - CI badges
-4. 4–6 page PDF report (ENSIMAG submission style)
-5. k6 results (20k+ connections, p95 latency < 150ms)
-
-## Skills you will have mastered 100%
-
-- Advanced Go concurrency (sharding, channels, context)
-- Memory management (sync.Pool, zero-copy when possible)
-- Asynchronous persistence
-- Simple distributed systems (Redis pub/sub)
-- Observability (Prometheus, pprof)
-- Graceful shutdown in a cluster
-- Real load tests
-- Docker + docker-compose
+---
+*Good luck. The system is waiting.*

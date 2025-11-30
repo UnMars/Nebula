@@ -2,7 +2,6 @@ package client
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"nebula/internal/message"
 	"nebula/internal/types"
@@ -79,6 +78,7 @@ func (c *Client) ReadPump() {
 			}
 			break
 		}
+		log.Printf("Received message %s\n", string(msg))
 		// Format message
 		var decodedMsg message.BroadcastMessage
 		json.Unmarshal(msg, &decodedMsg)
@@ -98,7 +98,10 @@ func (c *Client) ReadPump() {
 func (c *Client) WritePump() {
 	// Heartbeat each 30 seconds
 	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
+	defer func() {
+		ticker.Stop()
+		c.conn.Close()
+	}()
 
 	for {
 		select {
@@ -125,7 +128,7 @@ func (c *Client) WritePump() {
 				return
 			}
 
-			fmt.Println("Sending message:", string(msgAsJson))
+			log.Println("Sending message:", string(msgAsJson))
 			w.Write(msgAsJson)
 
 			// Close writer

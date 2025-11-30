@@ -123,7 +123,7 @@ func (h *Hub) BroadcastMessage(msg message.BroadcastMessage) {
 func NewHub() *Hub {
 	return &Hub{
 		rooms:     make(map[string]*room.Room),
-		broadcast: make(chan message.BroadcastMessage),
+		broadcast: make(chan message.BroadcastMessage, 256),
 	}
 }
 

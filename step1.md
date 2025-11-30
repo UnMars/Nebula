@@ -109,3 +109,20 @@ To validate Step 1, you must check all these boxes:
 
 ### 🚀 Ready for Step 2?
 Once this checklist is complete, you are ready to tackle **Sharding & High Performance**.
+
+## 📊 Benchmark Results (Step 1)
+
+**Baseline established on:** 2025-11-30
+**Tool:** k6 (WebSocket)
+
+| Metric | Value |
+|--------|--------|
+| **Max Stable Users** | ~100 VUs |
+| **Max Throughput** | ~10,000 messages/sec (broadcast) |
+| **Latency (p95)** | 14ms (before crash) |
+| **Bottleneck** | Single Hub Mutex + Sequential Broadcast loop |
+
+**Conclusion:**
+The current architecture (Single Hub with Global Mutex) hits a hard limit at around 100 concurrent users sending 1 msg/sec in the same room. The broadcast loop cannot keep up with the N*N message complexity, causing channel saturation and connection drops.
+
+**Next Step:** Implement Sharding (Step 2) to parallelize message handling.

@@ -11,4 +11,6 @@ type BroadcastMessage struct {
 	Content string `json:"content"`
 	// Users (only for presence messages)
 	Users []string `json:"users,omitempty"`
+	// Timestamp
+	SendAt int64 `json:"sendAt"`
 }

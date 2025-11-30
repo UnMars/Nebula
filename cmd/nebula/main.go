@@ -6,6 +6,7 @@ import (
 	"nebula/internal/hub"
 	"nebula/internal/server"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -35,6 +36,12 @@ func main() {
 	// Run the HTTP server in a goroutine
 	go func() { webServer.ListenAndServe() }()
 	log.Println("Server started on :8080")
+
+	// Profiling server
+	go func() {
+		log.Println("Starting pprof server on localhost:6060")
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	// Wait for termination signal
 	<-signalChan

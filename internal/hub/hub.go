@@ -5,6 +5,7 @@ import (
 	"nebula/internal/room"
 	"nebula/internal/types"
 	"sync"
+	"time"
 )
 
 // Hub of the server, it handles clients registration,
@@ -47,15 +48,17 @@ func (h *Hub) RegisterClient(client types.Clienter) {
 		Type:   "join",
 		Sender: client.Username(),
 		Users:  roomUsers,
+		SendAt: time.Now().UnixMilli(),
 	}
 	h.BroadcastMessage(welcomeMessage)
 
 	if len(roomUsers) > 0 {
 		// Send presence message
 		presenceMessage := message.BroadcastMessage{
-			Room:  roomName,
-			Type:  "presence",
-			Users: roomUsers,
+			Room:   roomName,
+			Type:   "presence",
+			Users:  roomUsers,
+			SendAt: time.Now().UnixMilli(),
 		}
 		h.BroadcastMessage(presenceMessage)
 	}
@@ -88,15 +91,17 @@ func (h *Hub) UnregisterClient(client types.Clienter) {
 		Room:   roomName,
 		Type:   "leave",
 		Sender: client.Username(),
+		SendAt: time.Now().UnixMilli(),
 	}
 	h.BroadcastMessage(leaveMessage)
 
 	if len(roomUsers) > 0 {
 		// Send presence message
 		presenceMessage := message.BroadcastMessage{
-			Room:  roomName,
-			Type:  "presence",
-			Users: roomUsers,
+			Room:   roomName,
+			Type:   "presence",
+			Users:  roomUsers,
+			SendAt: time.Now().UnixMilli(),
 		}
 		h.BroadcastMessage(presenceMessage)
 	}

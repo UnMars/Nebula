@@ -86,6 +86,7 @@ func (c *Client) ReadPump() {
 			continue
 		}
 		// Broadcast message to the room
+		decodedMsg.SendAt = time.Now().UnixMilli()
 		c.hub.BroadcastMessage(decodedMsg)
 
 	}
